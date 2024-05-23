@@ -1,0 +1,36 @@
+{
+  "version": "0.2.0",
+  "compounds": [
+    {
+      "name": "Client and Next.js: dev",
+      "configurations": ["Next.js: dev", "Client"]
+    }
+  ],
+  "configurations": [
+    {
+      "name": "Client",
+      "request": "launch",
+      "type": "chrome",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}",
+      "userDataDir": false
+    },
+    {
+      "name": "Next.js: dev",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      // "port": 9229,
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "outputCapture": "std"
+    }
+  ]
+}
