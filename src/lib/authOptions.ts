@@ -21,7 +21,9 @@ const authOptions: NextAuthOptions = {
         try {
           // メールアドレス存在チェック
           user = await prisma.user.findUnique({
-            where: { email: credentials?.email },
+            where: {
+              email: credentials?.email
+            },
           });
         } catch (error) {
           return null; // エラーが発生した場合はnullを返す
@@ -44,10 +46,30 @@ const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
+  // https://zenn.dev/ohtasoji/articles/439eea63f1828c
+  // しかし、NextAuth.jsのmiddlewareではJWTを使い認証をしています。そのためPrismaAdapterを使用するとデフォルトがデータベースセッションになってしまうため、middlewareが機能せず一生SignInページにリダイレクトされます。
+  // session: {
+  //   strategy: "database",
+  //   maxAge: 60 * 60 * 24 * 30, // 30 days
+  //   updateAge: 60 * 60 * 24, // 24 hours
+  // },
   callbacks: {
+    // async signIn({ user, account, profile, email, credentials }) {
+    //   return true
+    // },
     async redirect({ url, baseUrl }) {
-      return "/";
+      return baseUrl
     },
+    async session({ session, token, user }) {
+      if(session.user.id === undefined){
+        session.user.id = token.sub || '';
+
+      }
+      return session
+    },
+    async jwt({ token, user, account, profile, isNewUser }) {
+      return token
+    }
   },
 }
 

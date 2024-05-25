@@ -72,7 +72,7 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
    * @returns データ取得を待つPromise
    */
   public static async Create<U extends Mdl0Base<U>>(
-    this: new(idOrDocSnapshot: string | fs.DocumentSnapshot | fs.QueryDocumentSnapshot) => U,
+    this: new (idOrDocSnapshot: string | fs.DocumentSnapshot | fs.QueryDocumentSnapshot) => U,
     idOrSnapshot: string | fs.DocumentSnapshot | fs.QueryDocumentSnapshot
   ): Promise<U> {
     return new Promise(async (resolve) => {
@@ -92,7 +92,7 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
    * @returns クラスインスタンス、指定IDのデータが存在しない場合、null
    */
   static async get<U extends Mdl0Base<U>>(
-    this: new(idOrDocSnapshot: fs.DocumentSnapshot<fs.DocumentData, fs.DocumentData>) => U,
+    this: new (idOrDocSnapshot: fs.DocumentSnapshot<fs.DocumentData, fs.DocumentData>) => U,
     id: string
   ): Promise<U | null> {
     return new Promise(async (resolve) => {
@@ -113,7 +113,7 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
    * @returns Mdlクラスインスタンスの配列。
    */
   static async getAll<U extends Mdl0Base<U>>(
-    this: new(idOrDocSnapshot: fs.QueryDocumentSnapshot<unknown, fs.DocumentData>) => U,
+    this: new (idOrDocSnapshot: fs.QueryDocumentSnapshot<unknown, fs.DocumentData>) => U,
     ...conditions: any[] | Array<any[]>
   ): Promise<U[]> {
     return new Promise(async (resolve) => {
@@ -225,17 +225,6 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
 
       snapshot.docChanges().forEach((change) => {
         if (change.type === changeType) {
-          if (
-            callbackIns &&
-            callbackIns.updateSync &&
-            change.type === "modified"
-          ) {
-            const mdl = new this(change.doc) as U;
-            for (const key in mdl.data) {
-              callbackIns.data[key] = mdl.data[key];
-            }
-          }
-
           callback(callbackIns || (new this(change.doc) as U), change.type);
         }
       });
@@ -325,17 +314,16 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
     idOrDocSnapshot:
       string
       | fs.DocumentSnapshot<fs.DocumentData, fs.DocumentData>
-      | fs.QueryDocumentSnapshot<unknown, fs.DocumentData>,
+      | fs.QueryDocumentSnapshot<unknown, fs.DocumentData> = '',
     isNewData: boolean = false
   ) {
-    if (typeof idOrDocSnapshot == "string") {
+    if (typeof idOrDocSnapshot === "string" && idOrDocSnapshot !== '') {
       // type = 'id';
       this._id = idOrDocSnapshot;
       if (isNewData) {
         this._loaded = true;
       }
       this._isNewData = isNewData;
-      this.updateSync = true;
     } else if (idOrDocSnapshot) {
       // type = 'ss';
       if (isNewData) {
@@ -347,7 +335,6 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
       this._data = idOrDocSnapshot.data();
       this._loaded = true;
       this._isNewData = false;
-      this.updateSync = true;
     } else {
       // type= 'new';
       this._data = {};
@@ -392,7 +379,11 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
       throw new Error("更新同期を始める場合は、先にIDを指定して下さい。");
     }
     if (this._updateSyncUnsubscribe === null && value) {
-      this._updateSyncUnsubscribe = this.onUpdated(() => {});
+      this._updateSyncUnsubscribe = this.onUpdated((mdl) => {
+        for (const key in mdl.data) {
+          this._data[key] = mdl.data[key];
+        }
+      });
     } else if (this._updateSyncUnsubscribe !== null && !value) {
       // デタッチを実行
       this._updateSyncUnsubscribe();
@@ -400,11 +391,11 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
       this._updateSyncUnsubscribe = null;
     }
   }
-  private _updateSyncUnsubscribe: fs.Unsubscribe | null = null; // コンストラクターでtrueに設定し、基本は同期するようにする。
+  private _updateSyncUnsubscribe: fs.Unsubscribe | null = null;
   /**
    * データを保持するオブジェクト
    */
-  get data(): any {
+  public get data(): any {
     if (!this._loaded) {
       throw new Error("dataへのアクセス前に、loadを実行してください。");
     }

@@ -1,6 +1,10 @@
-import Sidebar from "@/src/cmp/Sidebar";
+'use client'
 
-export default async function RootLayout({
+import Sidebar from "@/src/cmp/Sidebar";
+import PrelineScript from "@/src/cmp/PrelineScript";
+import { RecoilRoot } from 'recoil';
+
+export default function Layout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -9,9 +13,10 @@ export default async function RootLayout({
   // const session = await getServerSession();
 
   return (
-    <>
+    <RecoilRoot>
       <Sidebar />
       {children}
-    </>
+      <PrelineScript />
+    </RecoilRoot>
   );
 }

@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-import Sidebar from "@/src/cmp/Sidebar";
-import PrelineScript from "@/src/cmp/PrelineScript";
-import NextAuthProvider from "@/src/cmp/NextAuth";
+import NextAuthProvider from "@/src/cmp/NextAuthProvider";
 
 export const metadata: Metadata = {
   title: "JavaScript道場",
@@ -23,7 +21,6 @@ export default async function RootLayout({
       <body>
         <NextAuthProvider>
           {children}
-          <PrelineScript />
         </NextAuthProvider>
       </body>
     </html>

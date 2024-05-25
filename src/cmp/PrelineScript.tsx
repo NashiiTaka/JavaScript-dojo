@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
 import { IStaticMethods } from "preline/preline";
+import { useRecoilState, stateQuestions } from "./states";
+
 declare global {
   interface Window {
     HSStaticMethods: IStaticMethods;
@@ -12,6 +14,7 @@ declare global {
 
 export default function PrelineScript() {
   const path = usePathname();
+  const [questions, setQuestions] = useRecoilState(stateQuestions);
 
   useEffect(() => {
     const loadPreline = async () => {
@@ -21,7 +24,7 @@ export default function PrelineScript() {
     };
 
     loadPreline();
-  }, [path]);
+  }, [path, questions]);
 
   return null;
 }

@@ -4,32 +4,113 @@ import MdlQuestion from "@/src/mdl/MdlQuestion";
 import { useEffect, useState } from "react";
 import { useDebouncedCallback } from "use-debounce";
 
-import { IStaticMethods, HSAccordion } from "preline/preline";
 import Link from "next/link";
+import { stateQuestions } from "./states";
+import { useRecoilState } from "recoil";
 
 export default function Sidebar(props: any) {
-  const [questions, setQuestions] = useState<MdlQuestion[]>([]);
+  const [questions, setQuestions] = useRecoilState(stateQuestions);;
 
   // 初回のonChildは一気に来るので、読込をまとめて行う。
   const cb = useDebouncedCallback(async () => {
-    console.log(
-      "Sidebar::useDebouncedCallback: setQuestions(await MdlQuestion.getAll());"
+    console.log("Sidebar::useDebouncedCallback: setQuestions(await MdlQuestion.getAll());");
+
+    const datas = (await MdlQuestion.getAll()).sort(
+      (a: MdlQuestion, b: MdlQuestion) => {
+        return a._caption < b._caption ? -1 : a._caption > b._caption ? 1 : 0;
+      }
     );
 
-    const data = (await MdlQuestion.getAll()).sort((a: MdlQuestion, b: MdlQuestion) => {
-      return a._caption < b._caption ? -1 : (a._caption > b._caption ? 1 : 0);
+    const byCategory: Record<string, MdlQuestion[]> = {};
+    datas.forEach((data) => {
+      byCategory[data._category] ||= [];
+      byCategory[data._category].push(data);
     });
-    setQuestions(data);
+
+    Object.keys(questions).forEach((key) => questions[key].forEach((q) => q.updateSync = false));
+
+    setQuestions(byCategory);
   }, 1000);
 
   useEffect(() => {
-    MdlQuestion.onChildSnapshot(cb);
+    const unsubscribe = MdlQuestion.onChildSnapshot(cb);
+    return () => { unsubscribe() }
   }, [cb]);
 
-  console.log("Sidebar: render: " + questions.length);
+  const toplevelButton = (title: string, controlAreaId: string, isAdmin = false) => {
+
+    const icon = isAdmin ? (
+      <>
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" />
+      </>
+    ) : (
+      <>
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+      </>
+    );
+
+    return (
+      <button
+        type="button"
+        className="hs-accordion-toggle w-full text-start flex items-center gap-x-3.5 py-2 px-2.5 hs-accordion-active:text-white hs-accordion-active:hover:bg-transparent text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600"
+        aria-controls={controlAreaId}
+      >
+        <svg
+          className="flex-shrink-0 size-4"
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {icon}
+        </svg>
+        {title}
+        <svg
+          className="hs-accordion-active:block ms-auto hidden size-4"
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m18 15-6-6-6 6" />
+        </svg>
+        <svg
+          className="hs-accordion-active:hidden ms-auto block size-4"
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+    )
+  }
+
+
+
   return (
     <div id="sidebar">
-      <div className="sticky top-0 inset-x-0 z-20 bg-white border-y px-4 sm:px-6 md:px-8 lg:hidden dark:bg-neutral-800 dark:border-neutral-700">
+      <div
+        className="sticky top-0 inset-x-0 z-20 bg-white border-y px-4 sm:px-6 md:px-8 lg:hidden dark:bg-neutral-800 dark:border-neutral-700"
+        id="sidebar-top"
+      >
         <div className="flex items-center py-4">
           {/* <!-- Navigation Toggle --> */}
           <button
@@ -77,7 +158,6 @@ export default function Sidebar(props: any) {
             </li>
             <li
               className="text-sm font-semibold text-gray-800 truncate dark:text-neutral-400"
-              aria-current="page"
             >
               Dashboard
             </li>
@@ -104,7 +184,6 @@ export default function Sidebar(props: any) {
 
         <nav
           className="hs-accordion-group p-6 w-full flex flex-col flex-wrap"
-          data-hs-accordion-always-open
         >
           <ul className="space-y-1.5">
             <li>
@@ -131,59 +210,10 @@ export default function Sidebar(props: any) {
               </a>
             </li>
 
-            <li className="hs-accordion" id="projects-accordion">
-              <button
-                type="button"
-                className="hs-accordion-toggle w-full text-start flex items-center gap-x-3.5 py-2 px-2.5 hs-accordion-active:text-white hs-accordion-active:hover:bg-transparent text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600"
-              >
-                <svg
-                  className="flex-shrink-0 size-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                </svg>
-                Admin
-                <svg
-                  className="hs-accordion-active:block ms-auto hidden size-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="m18 15-6-6-6 6" />
-                </svg>
-                <svg
-                  className="hs-accordion-active:hidden ms-auto block size-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-
+            <li className="hs-accordion" id="acdn-admin-top">
+              {toplevelButton('Admin', 'acdn-admin-children', true)}
               <div
-                id="projects-accordion-child"
+                id="acdn-admin-children"
                 className="hs-accordion-content w-full overflow-hidden transition-[height] duration-300 hidden"
               >
                 <ul className="pt-2 ps-2">
@@ -195,93 +225,76 @@ export default function Sidebar(props: any) {
                       問題追加
                     </Link>
                   </li>
-                  {questions.map((q) => {
-                    return (
-                      <li key={q.id + "_admin"} id={q.id + "_admin"}>
-                        <Link
-                          href={`/admin/question/edit/${q.id}`}
-                          className="flex items-center gap-x-3.5 py-2 px-2.5 text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600"
-                        >
-                          {q._caption}
-                        </Link>
-                      </li>
-                    );
-                  })}
+                  <li>
+                    <div className="hs-accordion-group">
+                      {Object.keys(questions).sort().map((key) => {
+                        let firstQuestionId = questions[key][0].id;
+                        const questionsNodes = questions[key].map((question) => {
+                          return (
+                            <li key={question.id + "_admin"} id={question.id + "_admin"}>
+                              <Link
+                                href={`/admin/question/edit/${question.id}`}
+                                className="flex items-center gap-x-3.5 py-2 px-2.5 text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600"
+                              >
+                                {question._caption}
+                              </Link>
+                            </li>
+                          )
+                        })
+
+                        const parentId = firstQuestionId + "_wrapper_admin";
+                        return (
+                          <li className="hs-accordion" key={parentId} id={parentId + '-accordion'}>
+                            {toplevelButton(key, parentId + "-accordion-child")}
+                            <div
+                              id={parentId + "-accordion-child"}
+                              className="hs-accordion-content w-full overflow-hidden transition-[height] duration-300 hidden"
+                              aria-labelledby={parentId + '-accordion'}
+                            >
+                              <ul className="pt-2 ps-2">
+                                {questionsNodes}
+                              </ul>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </div>
+                  </li>
+
                 </ul>
               </div>
             </li>
 
-            <li className="hs-accordion" id="projects-accordion">
-              <button
-                type="button"
-                className="hs-accordion-toggle w-full text-start flex items-center gap-x-3.5 py-2 px-2.5 hs-accordion-active:text-white hs-accordion-active:hover:bg-transparent text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600"
-              >
-                <svg
-                  className="flex-shrink-0 size-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                </svg>
-                String
-                <svg
-                  className="hs-accordion-active:block ms-auto hidden size-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="m18 15-6-6-6 6" />
-                </svg>
-                <svg
-                  className="hs-accordion-active:hidden ms-auto block size-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
+            {Object.keys(questions).sort().map((key) => {
+              let firstQuestionId = questions[key][0].id;
+              const questionsNodes = questions[key].map((question) => {
+                return (
+                  <li key={question.id} id={question.id}>
+                    <Link
+                      href={`/question/${question.id}`}
+                      className="flex items-center gap-x-3.5 py-2 px-2.5 text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600"
+                    >
+                      {question._caption}
+                    </Link>
+                  </li>
+                )
+              })
 
-              <div
-                id="projects-accordion-child"
-                className="hs-accordion-content w-full overflow-hidden transition-[height] duration-300 hidden"
-              >
-                <ul className="pt-2 ps-2">
-                  {questions.map((q) => {
-                    return (
-                      <li key={q.id} id={q.id}>
-                        <Link
-                          href={`/question/${q.id}`}
-                          className="flex items-center gap-x-3.5 py-2 px-2.5 text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600"
-                        >
-                          {q._caption}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            </li>
+              const parentId = firstQuestionId + "_wrapper";
+              return (
+                <li className="hs-accordion" key={parentId} id={parentId + '-accordion'}>
+                  {toplevelButton(key, parentId + "-accordion-child")}
+                  <div
+                    id={parentId + "-accordion-child"}
+                    className="hs-accordion-content w-full overflow-hidden transition-[height] duration-300 hidden"
+                  >
+                    <ul className="pt-2 ps-2">
+                      {questionsNodes}
+                    </ul>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </nav>
       </div>
