@@ -1,3 +1,4 @@
+import { number, object } from "zod";
 import { db } from "../lib/firebaseAppIns";
 import * as fs from "firebase/firestore";
 
@@ -43,6 +44,7 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
     return this._subCollectionNames;
   }
   protected static _subCollectionNames: string[] = []; // 要継承先でのオーバーライド
+
   /**
    * デフォルト値の配列。新規保存時に未設定のフィールドがあった場合、この値で設定して登録を行う。
    */
@@ -50,6 +52,7 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
     return this._defaultValues;
   }
   protected static _defaultValues: any = {}; // 要継承先でのオーバーライド
+
   //#endregion static fields
 
   //#region static プロパティ
@@ -300,41 +303,57 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
   //#region コンストラクタ
   /**
    * コンストラクタ
-   * @param {string | fs.DocumentSnapshot} idOrDocSnapshot ID文字列か、DocumentSnapshot
-   * @param {boolean} isNewData 新規データの場合true
-   */
-
-
-  /**
-   * コンストラクタ
-   * @param idOrDocSnapshot コンストラクタ ID、DocumentSnapshot、QueryDocumentSnapshotのいずれかを引数に取る
+   * @param idOrDocSnapshotOrObj コンストラクタ ID、DocumentSnapshot、QueryDocumentSnapshotのいずれかを引数に取る
    * @param isNewData 新規データの場合true、デフォルトfalse
    */
   public constructor(
-    idOrDocSnapshot:
+    idOrDocSnapshotOrObj:
       string
       | fs.DocumentSnapshot<fs.DocumentData, fs.DocumentData>
-      | fs.QueryDocumentSnapshot<unknown, fs.DocumentData> = '',
+      | fs.QueryDocumentSnapshot<unknown, fs.DocumentData>
+      | any
+      = '',
     isNewData: boolean = false
   ) {
-    if (typeof idOrDocSnapshot === "string" && idOrDocSnapshot !== '') {
+    if (typeof idOrDocSnapshotOrObj === "string" && idOrDocSnapshotOrObj !== '') {
       // type = 'id';
-      this._id = idOrDocSnapshot;
+      this._id = idOrDocSnapshotOrObj;
       if (isNewData) {
         this._loaded = true;
       }
       this._isNewData = isNewData;
-    } else if (idOrDocSnapshot) {
+    } else if (
+      idOrDocSnapshotOrObj instanceof fs.DocumentSnapshot
+      || idOrDocSnapshotOrObj instanceof fs.QueryDocumentSnapshot
+    ) {
       // type = 'ss';
       if (isNewData) {
         throw new Error(
           "docSnapshotを指定した場合、isNewRecordはfalseを指定してください"
         );
       }
-      this._id = idOrDocSnapshot.id;
-      this._data = idOrDocSnapshot.data();
+      this._id = idOrDocSnapshotOrObj.id;
+      this._data = idOrDocSnapshotOrObj.data();
+      this.convertTimestampToDate();
+
       this._loaded = true;
       this._isNewData = false;
+    } else if (typeof idOrDocSnapshotOrObj === 'object') {
+      Object.keys(idOrDocSnapshotOrObj).forEach((key) => {
+        if (key === 'id') {
+          this._id = idOrDocSnapshotOrObj[key];
+        } else if (key === 'isNewData') {
+          this.isNewData = idOrDocSnapshotOrObj[key];
+        } else if (key === 'loaded') {
+          this._loaded = idOrDocSnapshotOrObj[key];
+        } else if (typeof idOrDocSnapshotOrObj[key] === 'string' && idOrDocSnapshotOrObj[key].startsWith('[___DATEVALUE___]')) {
+          const dateValue = new Date();
+          dateValue.setTime(parseInt(idOrDocSnapshotOrObj[key].replace('[___DATEVALUE___]', '')));
+          this._data[key] = dateValue;
+        } else {
+          this._data[key] = idOrDocSnapshotOrObj[key];
+        }
+      })
     } else {
       // type= 'new';
       this._data = {};
@@ -350,6 +369,34 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
    */
   private get myTypeAsMdl0Base() {
     return this.constructor as typeof Mdl0Base;
+  }
+
+  /**
+   * 保存時に自動登録されるユーザーID
+   */
+  public get userIdUsedWhenSave() {
+    return this._userIdUsedWhenSave;
+  }
+  set userIdUsedWhenSave(value) {
+    this._userIdUsedWhenSave = value;
+  }
+  private _userIdUsedWhenSave: string | undefined = undefined;
+
+  /**
+   * サーバーコンポーネントからクライアントコンポーネントに受け渡しできるデータを返却する。
+   * コンストラクタ引数にこのデータを渡すと、同じデータを持つインスタンスを生成する。
+   */
+  public get serializeData() {
+    const ret: any = { id: this._id, isNewData: this.isNewData, loaded: this._loaded };
+    Object.keys(this.data).forEach((key) => {
+      if (this.data[key] instanceof Date) {
+        ret[key] = '[___DATEVALUE___]' + this.data[key].getTime();
+      } else {
+        ret[key] = this.data[key];
+      }
+    })
+
+    return ret;
   }
   /**
    * ID
@@ -383,6 +430,7 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
         for (const key in mdl.data) {
           this._data[key] = mdl.data[key];
         }
+        this.convertTimestampToDate();
       });
     } else if (this._updateSyncUnsubscribe !== null && !value) {
       // デタッチを実行
@@ -431,6 +479,30 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
       fs.where(fs.documentId(), "==", this.id)
     );
   }
+  /**
+   * 作成者ユーザーID
+   */
+  public get createUserId() {
+    return this.data['create_user_id'];
+  }
+  /**
+   * 更新者ユーザーID
+   */
+  public get updateUserId() {
+    return this.data['update_user_id'];
+  }
+  /**
+   * 作成時間
+   */
+  public get createdAt() {
+    return this.data['created_at'];
+  }
+  /**
+   * 更新者ユーザーID
+   */
+  public get updatedAt() {
+    return this.data['updated_at'];
+  }
   //#endregion プロパティ
 
   //#region メソッド
@@ -445,6 +517,7 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
       } else {
         const ss = await fs.getDoc(this.refDoc);
         this._data = ss.exists() ? ss.data() : {};
+        this.convertTimestampToDate();
         this._loaded = true;
         resolve();
       }
@@ -469,18 +542,17 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
       }
 
       const now = new Date();
+      this.data.created_at = now;
+      this.data.updated_at = now;
+      if (this.userIdUsedWhenSave) {
+        this.data['create_user_id'] = this.userIdUsedWhenSave;
+        this.data['update_user_id'] = this.userIdUsedWhenSave;
+      }
+
       if (this.id) {
-        await fs.setDoc(this.refDoc, {
-          ...this.data,
-          created_at: now,
-          updated_at: now,
-        });
+        await fs.setDoc(this.refDoc, this.data);
       } else {
-        const doc = await fs.addDoc(this.myTypeAsMdl0Base.refCollection, {
-          ...this.data,
-          created_at: now,
-          updated_at: now,
-        });
+        const doc = await fs.addDoc(this.myTypeAsMdl0Base.refCollection, this.data,);
         this._id = doc.id;
         // 登録が終わったので、更新時同期を設定する。
         // 一旦デタッチして再アタッチする。
@@ -526,6 +598,19 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
       resolve(this as unknown as T);
     });
   }
+
+  /**
+   * this.dataの中のTimestamp型をDate型に変更する。
+   */
+  private convertTimestampToDate() {
+    // fs.Timestamp型は扱いにくいのでDate型に変更しておく
+    Object.keys(this._data).forEach((key) => {
+      if (this._data[key] instanceof fs.Timestamp) {
+        this._data[key] = new Date((this._data[key] as fs.Timestamp).toMillis());
+      }
+    })
+  }
+
   //#endregion メソッド
 
   //#region イベントハンドラ
@@ -537,8 +622,15 @@ export default class Mdl0Base<T extends Mdl0Base<T>> {
     if (this.isNewData) {
       throw new Error("新規データに対して、udpateが呼ばれました。");
     }
+
+    const now = new Date();
+    this.data['updated_at'] = now;
+    if (this.userIdUsedWhenSave) {
+      this.data['update_user_id'] = this.userIdUsedWhenSave;
+    }
+
     return new Promise(async (resolve) => {
-      await fs.updateDoc(this.refDoc, { ...this.data, updated_at: new Date() });
+      await fs.updateDoc(this.refDoc, this.data);
       resolve(this as unknown as T);
     });
   }

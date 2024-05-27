@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-import NextAuthProvider from "@/src/cmp/NextAuthProvider";
+import NextAuthProvider from "@/cmp/NextAuthProvider";
 
 export const metadata: Metadata = {
   title: "JavaScript道場",

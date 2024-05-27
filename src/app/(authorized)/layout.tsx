@@ -1,7 +1,7 @@
 'use client'
 
-import Sidebar from "@/src/cmp/Sidebar";
-import PrelineScript from "@/src/cmp/PrelineScript";
+import Sidebar from "@/cmp/Sidebar";
+import PrelineScript from "@/cmp/PrelineScript";
 import { RecoilRoot } from 'recoil';
 
 export default function Layout({
@@ -9,13 +9,12 @@ export default function Layout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // can get session info on server
-  // const session = await getServerSession();
-
   return (
     <RecoilRoot>
-      <Sidebar />
-      {children}
+      <div className="flex min-h-screen">
+        <Sidebar />
+        {children}
+      </div>
       <PrelineScript />
     </RecoilRoot>
   );

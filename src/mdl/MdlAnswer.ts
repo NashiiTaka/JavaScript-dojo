@@ -9,7 +9,4 @@ export default class MdlAnswer extends Mdl0Base<MdlAnswer> {
 
   get _answer() { return this.data['answer']; }
   set _answer(value) { this.data['answer'] = value; }
-
-  get _user_name() { return this.data['user_name']; }
-  set _user_name(value) { this.data['user_name'] = value; }
 }

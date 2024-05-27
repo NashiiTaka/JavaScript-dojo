@@ -1,15 +1,20 @@
 "use client";
 
-import MdlQuestion from "@/src/mdl/MdlQuestion";
+import MdlQuestion from "@/mdl/MdlQuestion";
 import { useEffect, useState } from "react";
 import { useDebouncedCallback } from "use-debounce";
 
 import Link from "next/link";
 import { stateQuestions } from "./states";
 import { useRecoilState } from "recoil";
+import { usePathname } from "next/navigation"
+
+import { ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 export default function Sidebar(props: any) {
-  const [questions, setQuestions] = useRecoilState(stateQuestions);;
+  const [questions, setQuestions] = useRecoilState(stateQuestions);
+  const [minimized, minimizedSet] = useState(false);
+  const pathname = usePathname();
 
   // 初回のonChildは一気に来るので、読込をまとめて行う。
   const cb = useDebouncedCallback(async () => {
@@ -30,12 +35,16 @@ export default function Sidebar(props: any) {
     Object.keys(questions).forEach((key) => questions[key].forEach((q) => q.updateSync = false));
 
     setQuestions(byCategory);
-  }, 1000);
+  }, 500);
 
   useEffect(() => {
     const unsubscribe = MdlQuestion.onChildSnapshot(cb);
     return () => { unsubscribe() }
   }, [cb]);
+
+  const clsCurrentPageTopTop = ' bg-gray-700';
+  const clsCurrentPageTopSub = ' bg-gray-800';
+
 
   const toplevelButton = (title: string, controlAreaId: string, isAdmin = false) => {
 
@@ -103,10 +112,9 @@ export default function Sidebar(props: any) {
     )
   }
 
-
-
   return (
     <div id="sidebar">
+
       <div
         className="sticky top-0 inset-x-0 z-20 bg-white border-y px-4 sm:px-6 md:px-8 lg:hidden dark:bg-neutral-800 dark:border-neutral-700"
         id="sidebar-top"
@@ -169,10 +177,22 @@ export default function Sidebar(props: any) {
 
       {/* <!-- Sidebar --> */}
       <div
-        id="application-sidebar-dark"
-        className="hs-overlay [--auto-close:lg] hs-overlay-open:translate-x-0 -translate-x-full transition-all duration-300 transform hidden fixed top-0 start-0 bottom-0 z-[60] w-64 bg-gray-900 border-e border-gray-800 pt-7 pb-10 overflow-y-auto lg:block lg:translate-x-0 lg:end-auto lg:bottom-0 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-track]:bg-neutral-700 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500"
+        className={minimized ? " " : "hidden"}
       >
-        <div className="px-6">
+        <ChevronsRight
+          onClick={() => { minimizedSet(!minimized) }}
+        />
+      </div>
+      <div
+        id="application-sidebar-dark"
+        className={
+          !minimized ?
+            // "hs-overlay [--auto-close:lg] hs-overlay-open:translate-x-0 -translate-x-full transition-all duration-300 transform hidden fixed top-0 start-0 bottom-0 z-[60] w-64 bg-gray-900 border-e border-gray-800 pt-7 pb-10 overflow-y-auto lg:block lg:translate-x-0 lg:end-auto lg:bottom-0 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-track]:bg-neutral-700 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500"
+            "hs-overlay h-screen [--auto-close:lg] hs-overlay-open:translate-x-0 -translate-x-full transition-all duration-300 transform hidden z-[60] w-64 bg-gray-900 border-e border-gray-800 pt-7 pb-10 overflow-y-auto lg:block lg:translate-x-0 lg:end-auto lg:bottom-0 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-track]:bg-neutral-700 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500"
+            : "hidden"
+        }
+      >
+        <div className="px-6 flex justify-between">
           <a
             className="flex-none text-xl font-semibold text-white focus:outline-none focus:ring-1 focus:ring-gray-600"
             href="/"
@@ -180,6 +200,11 @@ export default function Sidebar(props: any) {
           >
             JavaScript道場
           </a>
+          <div className="text-white">
+            <ChevronsLeft
+              onClick={() => { minimizedSet(!minimized) }}
+            />
+          </div>
         </div>
 
         <nav
@@ -187,9 +212,9 @@ export default function Sidebar(props: any) {
         >
           <ul className="space-y-1.5">
             <li>
-              <a
-                className="flex items-center gap-x-3 py-2 px-2.5 bg-gray-700 text-sm text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-600"
+              <Link
                 href="/"
+                className={"flex items-center gap-x-3 py-2 px-2.5 text-sm text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-600" + (pathname === "/" && clsCurrentPageTopTop)}
               >
                 <svg
                   className="flex-shrink-0 size-4"
@@ -207,7 +232,7 @@ export default function Sidebar(props: any) {
                   <polyline points="9 22 9 12 15 12 15 22" />
                 </svg>
                 Dashboard
-              </a>
+              </Link>
             </li>
 
             <li className="hs-accordion" id="acdn-admin-top">
@@ -220,44 +245,46 @@ export default function Sidebar(props: any) {
                   <li>
                     <Link
                       href={`/admin/question/add`}
-                      className="flex items-center gap-x-3.5 py-2 px-2.5 text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600"
+                      className={"flex items-center gap-x-3.5 py-2 px-2.5 text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600" + (pathname === "/admin/question/add" && clsCurrentPageTopTop)}
                     >
                       問題追加
                     </Link>
                   </li>
                   <li>
                     <div className="hs-accordion-group">
-                      {Object.keys(questions).sort().map((key) => {
-                        let firstQuestionId = questions[key][0].id;
-                        const questionsNodes = questions[key].map((question) => {
-                          return (
-                            <li key={question.id + "_admin"} id={question.id + "_admin"}>
-                              <Link
-                                href={`/admin/question/edit/${question.id}`}
-                                className="flex items-center gap-x-3.5 py-2 px-2.5 text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600"
-                              >
-                                {question._caption}
-                              </Link>
-                            </li>
-                          )
-                        })
+                      <ul className="pt-2 ps-2">
+                        {Object.keys(questions).sort().map((key) => {
+                          let firstQuestionId = questions[key][0].id;
+                          const questionsNodes = questions[key].map((question) => {
+                            return (
+                              <li key={question.id + "_admin"} id={question.id + "_admin"}>
+                                <Link
+                                  href={`/admin/question/edit/${question.id}`}
+                                  className={"flex items-center gap-x-3.5 py-2 px-2.5 text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600" + (pathname === `/admin/question/edit/${question.id}` && clsCurrentPageTopSub)}
+                                >
+                                  {question._caption}
+                                </Link>
+                              </li>
+                            )
+                          })
 
-                        const parentId = firstQuestionId + "_wrapper_admin";
-                        return (
-                          <li className="hs-accordion" key={parentId} id={parentId + '-accordion'}>
-                            {toplevelButton(key, parentId + "-accordion-child")}
-                            <div
-                              id={parentId + "-accordion-child"}
-                              className="hs-accordion-content w-full overflow-hidden transition-[height] duration-300 hidden"
-                              aria-labelledby={parentId + '-accordion'}
-                            >
-                              <ul className="pt-2 ps-2">
-                                {questionsNodes}
-                              </ul>
-                            </div>
-                          </li>
-                        );
-                      })}
+                          const parentId = firstQuestionId + "_wrapper_admin";
+                          return (
+                            <li className="hs-accordion" key={parentId} id={parentId + '-accordion'}>
+                              {toplevelButton(key, parentId + "-accordion-child")}
+                              <div
+                                id={parentId + "-accordion-child"}
+                                className="hs-accordion-content w-full overflow-hidden transition-[height] duration-300 hidden"
+                                aria-labelledby={parentId + '-accordion'}
+                              >
+                                <ul className="pt-2 ps-2">
+                                  {questionsNodes}
+                                </ul>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
                     </div>
                   </li>
 
@@ -272,7 +299,7 @@ export default function Sidebar(props: any) {
                   <li key={question.id} id={question.id}>
                     <Link
                       href={`/question/${question.id}`}
-                      className="flex items-center gap-x-3.5 py-2 px-2.5 text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600"
+                      className={"flex items-center gap-x-3.5 py-2 px-2.5 text-sm text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-1 focus:ring-gray-600" + (pathname === `/question/${question.id}` && clsCurrentPageTopSub)}
                     >
                       {question._caption}
                     </Link>

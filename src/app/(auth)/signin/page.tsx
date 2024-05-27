@@ -1,12 +1,12 @@
 "use client";
 import React from "react";
 import { useState } from "react";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { validationLoginSchema } from "@/src/validationSchema";
+import { validationLoginSchema } from "@/validationSchema";
 
 const Page = (props: any) => {
   const { data: session, status } = useSession();

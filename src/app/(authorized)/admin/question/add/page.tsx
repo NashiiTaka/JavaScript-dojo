@@ -1,5 +1,4 @@
-"use client";
-import EditQuestion from "@/src/cmp/EditQuestion";
+import EditQuestion from "@/cmp/EditQuestion";
 
 export default function Page() {
   return (

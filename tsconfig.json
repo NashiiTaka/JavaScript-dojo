@@ -22,10 +22,7 @@
       }
     ],
     "paths": {
-      // "@/*": ["./src/*"]
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
   "include": [
@@ -35,8 +32,8 @@
     ".next/types/**/*.ts",
     "src/mdl/Mdl0Base.ts",
     "src/app/api/auth/[...nextauth]/route.ts",
-    "src/app/(authorized)/admin/question/add/page.js",
-    "src/app/(authorized)/question/[id]/page.js",
+    "src/app/(authorized)/admin/question/add/page.tsx",
+    "src/app/(authorized)/question/[id]/page.tsx",
     "build/types/**/*.ts"
   ],
   "exclude": [
