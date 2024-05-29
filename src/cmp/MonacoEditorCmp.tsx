@@ -9,8 +9,12 @@ import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { dateToFormatedString } from "@/lib/util";
 import { useDebouncedCallback } from "use-debounce";
-import RecentAnswers from "@/cmp/RecentAnswers";
 import { revalidateAndRedirectPath } from "@/lib/server_actions";
+import { useRecoilState } from "recoil";
+import { stateQuestions } from "./states";
+import { ChevronsLeft } from 'lucide-react';
+import Link from "next/link";
+
 
 /**
  * モナコエディタ引数
@@ -22,25 +26,50 @@ import { revalidateAndRedirectPath } from "@/lib/server_actions";
  */
 type PropsMonacoEditorCmp = {
   mdlQuestionData: any;
-  mdlUserData: any;
+  mdlAuthorUserData: any;
+  mdlSerializeAnswers: any;
+  mdlAnswerUsers: any;
   height?: string;
   width?: string;
-  theme?: string;
   defaultLanguage?: string;
 }
 
 const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
   const { data: session, status } = useSession();
-
-  const [output, setOutput] = useState("");
-  const [registDisabled, setRegistDisabled] = useState(true);
   const [sessionEnabled, sessionEnabledSet] = useState(false);
+  const [output, setOutput] = useState("");
+  const [outputCount, setOutputCount] = useState(0);
+  const [registDisabled, setRegistDisabled] = useState(true);
   const [tests, setTests] = useState<any[]>([]);
   const [defaltValue, setDefaltValue] = useState("");
   const [mdlQuestion, mdlQuestionSet] = useState(new MdlQuestion(props.mdlQuestionData));
-  const [mdlUserData, mdlUserDataSet] = useState(props.mdlUserData);
+  const [mdlAuthorUserData, mdlAuthorUserDataSet] = useState(props.mdlAuthorUserData);
+  const [mdlAnswers, mdlAnswersSet] = useState<MdlAnswer[]>([]);
+  const [mdlAnswerUsers, mdlAnswerUsersSet] = useState<any[]>([]);
+  const [mdlCurrentAnswer, mdlCurrentAnswerSet] = useState<MdlAnswer | null>(null);
+  const [vsTheme, vsThemeSet] = useState<string | undefined>(undefined);
+
   const editorRef = useRef<any>(null);
-  const [questionId, questionIdSet] = useState(props.mdlQuestionData.id);
+  const editorRORef = useRef<any>(null);
+  const tabEditor = useRef<HTMLButtonElement>(null!);
+
+  const [questions, setQuestions] = useRecoilState(stateQuestions);
+
+  function getPrevAndNext(): { next: MdlQuestion | null, previous: MdlQuestion | null } {
+    for (const key in questions) {
+      for (let i = 0; i < questions[key].length; i++) {
+        if (questions[key][i].id === mdlQuestion.id) {
+          return {
+            next: i + 1 < questions[key].length ? questions[key][i + 1] : null,
+            previous: i !== 0 ? questions[key][i - 1] : null,
+          }
+        }
+      }
+    }
+    return { next: null, previous: null };
+  }
+  const [preAfMdls, setPreAfMdls] = useState<{ next: MdlQuestion | null, previous: MdlQuestion | null }>(getPrevAndNext());
+  // とりあえず、問題の追加や削除で前後移動の更新は機能過剰なので未実装、やめとく。
 
   // 初回のonChildは一気に来るので、読込をまとめて行う。
   const cb = useDebouncedCallback(async () => {
@@ -62,8 +91,19 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
   }
 
-  function handleEditorDidMount(editor: any) {
+  function handleEditorDidMount(editor: any, monaco: any) {
     editorRef.current = editor;
+    // キーバインディングの追加
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+      () => {
+        // Command + Return or Control + Enter が押された時の処理
+        alert('Command + Return or Control + Enter pressed!');
+      }
+    );
+  }
+  function handleEditorDidMountRO(editor: any) {
+    editorRORef.current = editor;
   }
 
   function makeCodeAndAnswers(mdl: MdlQuestion): [string, any[]] {
@@ -110,65 +150,61 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     ), answers];
   };
 
-  /**
-   * 
-   */
   const runCode = () => {
-    if (editorRef.current) {
-      const code = editorRef.current.getValue();
-      const originalConsoleLog = console.log;
-      let consoleLogs: string[] = [];
-      try {
-        // 結果を格納する配列を生成
-        const results = [...tests];
+    if (!editorRef.current) { return; }
 
-        // Custom console.log implementation
-        const customConsoleLog = (message = "") => {
-          consoleLogs.push(message);
-        };
+    const code = editorRef.current.getValue();
+    const originalConsoleLog = console.log;
+    let consoleLogs: string[] = [];
+    let outputCountUpd = 0;
+    try {
+      // 結果を格納する配列を生成
+      const results = [...tests];
 
-        let totalCount = 0;
-        let okCount = 0;
-        // Override console.log
-        console.log = customConsoleLog;
-        /* ★メソッドの追加★ */
-        (console as any).test_log = (message = "") => {
-          const bOk = message.match(/^【○】/);
-          if (bOk) { okCount++; }
-          const m = message.match(/実行結果:【(.*)】/);
-          const result = m ? m[1] : '';
+      let totalCount = 0;
+      let okCount = 0;
+      // Custom console.log implementation
+      const customConsoleLog = (message = "") => {
+        consoleLogs.push('No.' + (totalCount + 1).toString().padStart(2, "0") + ': ' + message);
+        outputCountUpd++;
+      };
+      // Override console.log
+      console.log = customConsoleLog;
+      /* ★メソッドの追加★ */
+      (console as any).test_log = (message = "") => {
+        const bOk = message.match(/^【○】/);
+        if (bOk) { okCount++; }
+        const m = message.match(/実行結果:【(.*)】/);
+        const result = m ? m[1] : '';
 
-          results[totalCount]['結果'] = result;
-          results[totalCount]['判定'] = bOk ? '○' : '×';
+        results[totalCount]['結果'] = result;
+        results[totalCount]['判定'] = bOk ? '○' : '×';
+        totalCount++;
+      }
+
+      // Object.setPrototypeOf(console, customTestLog);
+      // オブジェクトの各種出力
+
+      // Execute the JavaScript code
+      results.forEach((test, i) => {
+        try {
+          const func = new Function(code + "\n" + test.___log___);
+          func();
+        } catch (error: any) {
+          results[totalCount]['結果'] = error.message;
+          results[totalCount]['判定'] = '×';
           totalCount++;
         }
+      });
 
-        // Object.setPrototypeOf(console, customTestLog);
-        // オブジェクトの各種出力
-
-        // Execute the JavaScript code
-        results.forEach((test, i) => {
-          try {
-            originalConsoleLog("🚀 ~ runCode ~ :", i)
-            const func = new Function(code + "\n" + test.___log___);
-            originalConsoleLog("🚀 ~ runCode ~ : results.length1: ", consoleLogs.length)
-            func();
-            originalConsoleLog("🚀 ~ runCode ~ : results.length2: ", consoleLogs.length)
-          } catch (error: any) {
-            results[totalCount]['結果'] = error.message;
-            results[totalCount]['判定'] = '×';
-            totalCount++;
-          }
-        });
-
-        setTests(results);
-        setRegistDisabled(!(results.length <= okCount));
-      } finally {
-        setOutput(consoleLogs.join('\n'));
-        // Restore original console.log
-        console.log = originalConsoleLog;
-        delete (console as any).test_log;
-      }
+      setTests(results);
+      setRegistDisabled(!(results.length <= okCount));
+    } finally {
+      setOutput(consoleLogs.join('\n'));
+      setOutputCount(outputCountUpd);
+      // Restore original console.log
+      console.log = originalConsoleLog;
+      delete (console as any).test_log;
     }
   };
 
@@ -183,16 +219,30 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     if (editorRef.current) {
       editorRef.current.setValue(code);
     }
-    setOutput("");
     setRegistDisabled(true);
     mdlQuestionSet(newMdlQuestion);
-    mdlUserDataSet(props.mdlUserData);
-    questionIdSet(newMdlQuestion.id)
-  }, [props.mdlQuestionData, props.mdlUserData])
+    mdlAuthorUserDataSet(props.mdlAuthorUserData);
+    setOutput("");
+    setOutputCount(0);
+
+    mdlAnswersSet(
+      props.mdlSerializeAnswers ?
+        props.mdlSerializeAnswers.map((v: any) => new MdlAnswer(v)) : []
+    );
+
+    mdlAnswerUsersSet(
+      props.mdlAnswerUsers ?
+        props.mdlAnswerUsers : []
+    )
+
+    if (vsTheme !== localStorage.getItem('vsTheme')) {
+      vsThemeSet(localStorage.getItem('vsTheme') || 'vs');
+    }
+  }, [props.mdlQuestionData, props.mdlAuthorUserData, props.mdlSerializeAnswers, props.mdlAnswerUsers, vsTheme])
 
   useEffect(() => {
     sessionEnabledSet(status !== "loading");
-  }, [status])
+  }, [status, sessionEnabledSet])
 
   const handleRegist = async () => {
     setRegistDisabled(true);
@@ -250,11 +300,11 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
       const thClass = 'px-6 py-3 text-m font-medium text-gray-500 dark:text-neutral-400 text-center';
 
       return (
-        <div className="flex flex-col">
-          <div className="-m-1.5 overflow-auto">
-            <div className="p-1.5 min-w-full inline-block align-middle  pb-5">
-              <div className="border rounded-lg shadow dark:border-neutral-700 dark:shadow-gray-900">
-                <table className="w-full overflow-auto">
+        <div className="flex flex-col flex-grow" id="segment-1" aria-labelledby="tag-1">
+          <div className="-m-1.5 overflow-auto flex-grow">
+            <div className="p-1.5 min-w-full inline-block align-middle pb-5 flex-grow">
+              <div className="border rounded-lg shadow dark:border-neutral-700 dark:shadow-gray-900 flex-grow">
+                <table className="w-full overflow-auto flex-grow">
                   <thead className="bg-gray-50 dark:bg-neutral-700">
                     <tr>
                       <th className={thClass}>No.</th>
@@ -279,6 +329,16 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     }
   }
 
+  const handleAnswerClicked = (answer: MdlAnswer) => {
+    mdlCurrentAnswerSet(answer);
+    tabEditor.current.click();
+  }
+
+  const handleThemeChanged = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    vsThemeSet(e.target.value);
+    localStorage.setItem('vsTheme', e.target.value);
+  }
+
   const titleClassname = "font-bold";
 
   return (
@@ -287,11 +347,11 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
       <header className="font-bold md:text-xl dark:text-white flex">
         <p className="text-3xl underline decoration-dotted underline-offset-8">{mdlQuestion?._caption}</p>
         <div className="flex items-center ml-10">
-          <div className="flex-shrink-0 relative ">
-            {props.mdlUserData?.image && (
+          <div className="flex-shrink-0 relative">
+            {mdlAuthorUserData?.image && (
               <div className="relative size-10 rounded-full">
                 <Image
-                  src={props.mdlUserData?.image}
+                  src={mdlAuthorUserData?.image}
                   alt="author"
                   fill
                   className="inline-block size-[46px] rounded-full"
@@ -300,7 +360,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
             )}
           </div>
           <div className="ms-4">
-            <div className="text-base font-semibold text-gray-800 dark:text-neutral-400">{props.mdlUserData?.nickname}</div>
+            <div className="text-base font-semibold text-gray-800 dark:text-neutral-400">{mdlAuthorUserData?.nickname}</div>
             <div className="text-xs text-gray-500 dark:text-neutral-500">last modified: {dateToFormatedString(mdlQuestion.updatedAt)}</div>
           </div>
         </div>
@@ -308,48 +368,95 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
       {/* ヘッダ以降全て */}
       <main className="w-full flex-grow flex flex-col">
         {/* メイン上段 */}
-        <div className="flex flex-row w-full h-80 pt-6 pb-3">
-          <div className="w-1/2 pr-3 h-full">
-            <div className="border py-3 rounded-lg shadow dark:border-neutral-700 dark:shadow-gray-900 ps-4 sm:ps-6 mb-5 h-full">
-              <blockquote className="relative border-s-4 dark:border-neutral-700 h-full overflow-auto">
-                <pre className="text-gray-800 text-wrap dark:text-white ps-3">
-                  {mdlQuestion._lead}
-                </pre>
-              </blockquote>
-            </div>
-          </div>
-          <div className="w-1/2 px-3 h-full">
-            <div className="flex flex-row">
-              {/* ヒント アコーディオン */}
-              <div className="hs-accordion-group w-1/3 h-full overflow-auto">
-                {[1, 2, 3].map((n, i) => {
-                  return mdlQuestion.data[`hint${n}`] && (
-                    <div className="hs-accordion" id={`hs-basic-heading-${n}-hint`} key={`hs-basic-heading-${n}-hint`}>
-                      <button
-                        className="hs-accordion-toggle hs-accordion-active:text-blue-600 py-3 inline-flex items-center gap-x-3 w-full font-semibold text-start text-gray-800 hover:text-gray-500 rounded-lg disabled:opacity-50 disabled:pointer-events-none dark:hs-accordion-active:text-blue-500 dark:text-neutral-200 dark:hover:text-neutral-400 dark:focus:outline-none dark:focus:text-neutral-400"
-                        aria-controls={`hs-basic-collapse-hint-${n}`}
-                      >
-                        <svg className="hs-accordion-active:hidden block size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M5 12h14"></path>
-                          <path d="M12 5v14"></path>
-                        </svg>
-                        <svg className="hs-accordion-active:block hidden size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M5 12h14"></path>
-                        </svg>
-                        ヒント {n}
-                      </button>
-                      <div id={`hs-basic-collapse-hint-${n}`} className="hs-accordion-content w-full hidden overflow-hidden transition-[height] duration-300" aria-labelledby={`hs-basic-heading-${n}-hint`}>
-                        <p className="text-gray-800 dark:text-neutral-200">
-                          {/* <pre className="text-gray-800 dark:text-neutral-200"> */}
-                          {mdlQuestion.data[`hint${n}`]}
-                          {/* </pre> */}
-                        </p>
+        <div className="hs-accordion-group pt-3">
+          <div className="hs-accordion active bg-white border -mt-px first:rounded-t-lg last:rounded-b-lg dark:bg-neutral-800 dark:border-neutral-700" id="hs-bordered-heading-one">
+            <button className="hs-accordion-toggle hs-accordion-active:text-blue-600 inline-flex items-center gap-x-3 w-full font-semibold text-start text-gray-800 py-2 px-3 hover:text-gray-500 disabled:opacity-50 disabled:pointer-events-none dark:hs-accordion-active:text-blue-500 dark:text-neutral-200 dark:hover:text-neutral-400 dark:focus:outline-none dark:focus:text-neutral-400" aria-controls="hs-basic-bordered-collapse-one">
+              <svg className="hs-accordion-active:hidden block size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14"></path>
+                <path d="M12 5v14"></path>
+              </svg>
+              <svg className="hs-accordion-active:block hidden size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14"></path>
+              </svg>
+              問題 & ヒント & 他の人の解答
+            </button>
+            <div id="hs-basic-bordered-collapse-one" className="hs-accordion-content w-full overflow-hidden transition-[height] duration-300" aria-labelledby="hs-bordered-heading-one">
+              <div className="flex flex-row w-full h-80 pl-3 pb-3">
+                <div className="w-1/2 pr-3 h-full">
+                  <div className="border py-3 rounded-lg shadow dark:border-neutral-700 dark:shadow-gray-900 ps-4 sm:ps-6 mb-5 h-full">
+                    <blockquote className="relative border-s-4 dark:border-neutral-700 h-full overflow-auto">
+                      <pre className="text-gray-800 text-wrap dark:text-white ps-3">
+                        {mdlQuestion._lead}
+                      </pre>
+                    </blockquote>
+                  </div>
+                </div>
+                <div className="w-1/2 px-3 h-full">
+                  <div className="flex flex-row h-full">
+                    {/* ヒント アコーディオン */}
+                    <div className="hs-accordion-group w-1/3 h-full overflow-auto">
+                      {[1, 2, 3].map((n, i) => {
+                        return mdlQuestion.data[`hint${n}`] && (
+                          <div className="hs-accordion" id={`hs-basic-heading-${n}-hint`} key={`hs-basic-heading-${n}-hint`}>
+                            <button
+                              className="hs-accordion-toggle hs-accordion-active:text-blue-600 py-3 inline-flex items-center gap-x-3 w-full font-semibold text-start text-gray-800 hover:text-gray-500 rounded-lg disabled:opacity-50 disabled:pointer-events-none dark:hs-accordion-active:text-blue-500 dark:text-neutral-200 dark:hover:text-neutral-400 dark:focus:outline-none dark:focus:text-neutral-400"
+                              aria-controls={`hs-basic-collapse-hint-${n}`}
+                            >
+                              <svg className="hs-accordion-active:hidden block size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M5 12h14"></path>
+                                <path d="M12 5v14"></path>
+                              </svg>
+                              <svg className="hs-accordion-active:block hidden size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M5 12h14"></path>
+                              </svg>
+                              ヒント {n}
+                            </button>
+                            <div id={`hs-basic-collapse-hint-${n}`} className="hs-accordion-content w-full hidden overflow-hidden transition-[height] duration-300" aria-labelledby={`hs-basic-heading-${n}-hint`}>
+                              <p className="text-gray-800 dark:text-neutral-200">
+                                {mdlQuestion.data[`hint${n}`]}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {/* 解答リスト */}
+                    <div className="bg-gray-100 w-2/3 h-full">
+                      <div className="flex h-full w-full">
+                        <div className="p-2 bg-white shadow-lg rounded-lg h-full w-full">
+                          <div className="space-y-2 h-full overflow-auto w-full h-full">
+                            {mdlAnswers.length ? mdlAnswers.map((answer) => {
+                              const user = mdlAnswerUsers.find((u) => u.id === answer.updateUserId);
+                              return (
+                                <div key={answer.id} className={`flex items-center p-1 ${answer.id === mdlCurrentAnswer?.id ? 'bg-blue-100' : 'bg-gray-50'} hover:bg-blue-100 rounded-lg shadow w-full cursor-pointer`}
+                                  onClick={() => handleAnswerClicked(answer)}
+                                >
+                                  <div className="flex-shrink-0 relative ">
+                                    {user?.image && (
+                                      <div className="relative size-10 rounded-full">
+                                        <Image
+                                          src={user?.image}
+                                          alt="author"
+                                          fill
+                                          className="inline-block size-[46px] rounded-full"
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="ms-4">
+                                    <div className="text-base font-semibold text-gray-800 dark:text-neutral-400">{user?.nickname}</div>
+                                    <div className="text-xs text-gray-500 dark:text-neutral-500">last modified: {dateToFormatedString(answer.updatedAt)}</div>
+                                  </div>
+                                </div>
+                              )
+                            }) : <p>まだ解答はありません。</p>}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  )
-                })}
+                  </div>
+                </div>
               </div>
-              <RecentAnswers questionId={questionId}/>
             </div>
           </div>
         </div>
@@ -366,7 +473,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
                 defaultLanguage={props.defaultLanguage || "javascript"}
                 defaultValue={defaltValue}
                 onChange={handleEditorChange}
-                theme={props.theme || "vs"} // Optional: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light',  https://microsoft.github.io/monaco-editor/typedoc/interfaces/editor.IGlobalEditorOptions.html#theme
+                theme={vsTheme} // Optional: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light',  https://microsoft.github.io/monaco-editor/typedoc/interfaces/editor.IGlobalEditorOptions.html#theme
                 beforeMount={handleEditorWillMount}
                 onMount={handleEditorDidMount}
                 options={{
@@ -377,26 +484,114 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
                 }}
               />
             </div>
-            <div>
-              <button
-                id="answers_check"
-                type="button"
-                className="ml-5 my-4 py-3 px-4 inline-flex items-center gap-x-2 text-sm rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none"
-                disabled={registDisabled || !sessionEnabled}
-                onClick={handleRegist}
-              >
-                解答を登録！
-              </button>
+            <div className="w-full flex justify-center items-center">
+              <div className="w-1/4"></div>
+              <div className="w-1/2 flex justify-center items-center">
+                <Link
+                  className={`${!preAfMdls.previous && 'invisible '}w-1/3 pr-3 inline-flex items-center gap-x-1 text-gray-800 hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-500`}
+                  href={`/question/${preAfMdls.previous?.id}`}
+                >
+                  <svg className="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                  Prev
+                </Link>
+                <button
+                  id="answers_check"
+                  type="button"
+                  className="w-1/3 my-4 py-3 px-4 text-center gap-x-2 text-sm rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none"
+                  disabled={registDisabled || !sessionEnabled}
+                  onClick={handleRegist}
+                >
+                  登録{preAfMdls.next && ' & Next'}!
+                </button>
+                <Link
+                  className={`${!preAfMdls.next && 'invisible '}w-1/3 pl-3 inline-flex items-center gap-x-1 text-gray-800 hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-500`}
+                  href={`/question/${preAfMdls.next?.id}`}
+                >
+                  Next
+                  <svg className="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                </Link>
+              </div>
+              <div className="w-1/4 flex flex-col justify-end items-center">
+                <p className="pr-2 py-0 leading-6 h-6">theme</p>
+                <select
+                  className="py-2 px-2 border border-gray-400 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-400 dark:placeholder-neutral-500 dark:focus:ring-neutral-600"
+                  onChange={e => handleThemeChanged(e)}
+                  value={vsTheme}
+                >
+                  {!vsTheme && <option>loading</option>}
+                  <option>vs</option>
+                  <option>vs-dark</option>
+                  <option>hc-black</option>
+                  <option>hc-light</option>
+                </select>
+              </div>
             </div>
           </div>
-          <div className="w-1/2 flex-grow pl-3">
-            {argsAndAnswerParse(tests)}
+          <div className="w-1/2 flex-grow pl-3 flex flex-col">
+            <div className="flex-grow flex flex-row">
+              {argsAndAnswerParse(tests)}
+              <div id="segment-2" aria-labelledby="tag-2" className="flex-grow border rounded-lg shadow dark:border-neutral-700 dark:shadow-gray-900 w-full hidden">
+                <pre className="h-full oveflow-auto">
+                  {output}
+                </pre>
+              </div>
+              <div className="border rounded-lg shadow overflow-hidden dark:border-neutral-700 dark:shadow-gray-900 w-full relative flex-grow hidden" id="segment-3" aria-labelledby="tag-3">
+                {mdlCurrentAnswer ? (
+                  <Editor
+                    className="absolute h-full overflow-y-scroll"
+                    height={props.height || "100%"}
+                    width={props.width || "100%"}
+                    defaultLanguage={props.defaultLanguage || "javascript"}
+                    theme={vsTheme} // Optional: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light',  https://microsoft.github.io/monaco-editor/typedoc/interfaces/editor.IGlobalEditorOptions.html#theme
+                    onMount={handleEditorDidMountRO}
+                    value={mdlCurrentAnswer?._answer || ''}
+                    options={{
+                      fontSize: 16,
+                      tabSize: 2, // Ensure the tab size is set initially
+                      insertSpaces: true, // Use spaces instead of tabs
+                      minimap: { enabled: false },
+                      readOnly: true
+                    }}
+                  />
+                )
+                  : (
+                    <div className="h-full w-full flex justify-center items-center">
+                      <div className="text-5xl bg-red-50 p-3 rounded-lg">解答 未選択</div>
+                    </div>
+                  )
+                }
+              </div>
+            </div>
+            <div className="p-3">
+              <div className="flex justify-center">
+                <div className="flex bg-gray-100 hover:bg-gray-200 rounded-lg transition p-1 dark:bg-neutral-700 dark:hover:bg-neutral-600">
+                  <nav className="flex space-x-1" aria-label="Tabs" role="tablist">
+                    <button
+                      type="button" id="tag-1" data-hs-tab="#segment-1" aria-controls="segment-1" role="tab"
+                      className="active hs-tab-active:bg-white hs-tab-active:text-gray-700 hs-tab-active:dark:bg-neutral-800 hs-tab-active:dark:text-neutral-400 dark:hs-tab-active:bg-gray-800 py-3 px-4 inline-flex items-center gap-x-2 bg-transparent text-sm text-gray-500 hover:text-gray-700 font-medium rounded-lg hover:hover:text-blue-600 disabled:opacity-50 disabled:pointer-events-none dark:text-neutral-400 dark:hover:text-white"
+                    >
+                      判定
+                    </button>
+                    <button
+                      type="button" id="tag-2" data-hs-tab="#segment-2" aria-controls="segment-2" role="tab"
+                      className="hs-tab-active:bg-white hs-tab-active:text-gray-700 hs-tab-active:dark:bg-neutral-800 hs-tab-active:dark:text-neutral-400 dark:hs-tab-active:bg-gray-800 py-3 px-4 inline-flex items-center gap-x-2 bg-transparent text-sm text-gray-500 hover:text-gray-700 font-medium rounded-lg hover:hover:text-blue-600 disabled:opacity-50 disabled:pointer-events-none dark:text-neutral-400 dark:hover:text-white"
+                    >
+                      ログ:{outputCount}
+                    </button>
+                    <button
+                      type="button" id="tag-3" data-hs-tab="#segment-3" aria-controls="segment-3" role="tab"
+                      ref={tabEditor}
+                      className="hs-tab-active:bg-white hs-tab-active:text-gray-700 hs-tab-active:dark:bg-neutral-800 hs-tab-active:dark:text-neutral-400 dark:hs-tab-active:bg-gray-800 py-3 px-4 inline-flex items-center gap-x-2 bg-transparent text-sm text-gray-500 hover:text-gray-700 font-medium rounded-lg hover:hover:text-blue-600 disabled:opacity-50 disabled:pointer-events-none dark:text-neutral-400 dark:hover:text-white"
+                    >
+                      コード
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
           </div>
-          <pre>
-            {output}
-          </pre>
-        </div>
-      </main>
+        </div >
+      </main >
     </>
   );
 };
