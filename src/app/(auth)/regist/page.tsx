@@ -1,13 +1,12 @@
 'use client'
 
-import React, { useEffect } from "react";
+import React, { startTransition, useEffect } from "react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { validationRegistUserInfo } from "@/validationSchema";
 import { useSession } from "next-auth/react";
-import prisma from "@/lib/Prisma";
-import { useRouter } from "next/navigation";
+import { revalidateAndRedirectPath } from "@/lib/server_actions";
 
 const Page = (props: any) => {
   const { data: session, status, update } = useSession();
@@ -21,7 +20,6 @@ const Page = (props: any) => {
     mode: "onChange",
     resolver: zodResolver(validationRegistUserInfo),
   });
-  const rooter = useRouter();
 
   // ユーザー情報の登録処理の実行
   const handRegister = async (data: any) => {
@@ -36,7 +34,10 @@ const Page = (props: any) => {
     if (res.ok) {
       const { registerdNickname } = await res.json();
       await update({ nickname: registerdNickname });
-      rooter.push('/');
+      startTransition(async () => {
+        // サーバーサイドでキャッシュクリアとリダイレクトを実施。
+        await revalidateAndRedirectPath('/');
+      });
     } else {
       const resError = await res.json();
       setResError(resError.errors);
