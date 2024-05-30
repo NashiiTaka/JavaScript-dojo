@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState, startTransition } from "react";
 import MdlQuestion from "@/mdl/MdlQuestion";
-import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { revalidateAndRedirectPath } from "@/lib/server_actions"
 
@@ -11,8 +10,8 @@ export default function EditQuestion({ params }: { params?: { id?: string } }) {
     `文字列の中から、指定された位置の文字を1文字取得してください。
 
 【引数】 ※{型}、変数名、変数説明
-@param {number} target 対象の文字列
-@param {string} at 0始まり。0の場合は1文字目、1の場合は2文字目・・・
+@param {target} target 対象の文字列
+@param {number} at 0始まり。0の場合は1文字目、1の場合は2文字目・・・
 
 【戻り値】※{型}、説明
 @returns {string} 指定位置の文字`;

@@ -14,6 +14,7 @@ import { useRecoilState } from "recoil";
 import { stateQuestions } from "./states";
 import { ChevronsLeft } from 'lucide-react';
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 
 /**
@@ -48,28 +49,35 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
   const [mdlAnswerUsers, mdlAnswerUsersSet] = useState<any[]>([]);
   const [mdlCurrentAnswer, mdlCurrentAnswerSet] = useState<MdlAnswer | null>(null);
   const [vsTheme, vsThemeSet] = useState<string | undefined>(undefined);
+  const [os, osSet] = useState<string | undefined>(undefined);
 
   const editorRef = useRef<any>(null);
   const editorRORef = useRef<any>(null);
   const tabEditor = useRef<HTMLButtonElement>(null!);
+  const buttonRegistRef = useRef<HTMLButtonElement>(null!);
 
   const [questions, setQuestions] = useRecoilState(stateQuestions);
 
-  function getPrevAndNext(): { next: MdlQuestion | null, previous: MdlQuestion | null } {
-    for (const key in questions) {
-      for (let i = 0; i < questions[key].length; i++) {
-        if (questions[key][i].id === mdlQuestion.id) {
-          return {
-            next: i + 1 < questions[key].length ? questions[key][i + 1] : null,
-            previous: i !== 0 ? questions[key][i - 1] : null,
+  const [preAfMdls, setPreAfMdls] = useState<{ next: MdlQuestion | null, previous: MdlQuestion | null }>({ next: null, previous: null });
+  const router = useRouter();
+
+
+  useEffect(() => {
+    const getPrevAndNext = (): { next: MdlQuestion | null, previous: MdlQuestion | null } => {
+      for (const key in questions) {
+        for (let i = 0; i < questions[key].length; i++) {
+          if (questions[key][i].id === mdlQuestion.id) {
+            return {
+              next: i + 1 < questions[key].length ? questions[key][i + 1] : null,
+              previous: i !== 0 ? questions[key][i - 1] : null,
+            }
           }
         }
       }
+      return { next: null, previous: null };
     }
-    return { next: null, previous: null };
-  }
-  const [preAfMdls, setPreAfMdls] = useState<{ next: MdlQuestion | null, previous: MdlQuestion | null }>(getPrevAndNext());
-  // とりあえず、問題の追加や削除で前後移動の更新は機能過剰なので未実装、やめとく。
+    setPreAfMdls(getPrevAndNext());
+  }, [questions, mdlQuestion.id])
 
   // 初回のonChildは一気に来るので、読込をまとめて行う。
   const cb = useDebouncedCallback(async () => {
@@ -86,8 +94,6 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
   };
 
   function handleEditorWillMount(monaco: any) {
-    // here is the monaco instance
-    // do something before editor is mounted
     monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
   }
 
@@ -95,10 +101,10 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     editorRef.current = editor;
     // キーバインディングの追加
     editor.addCommand(
+      // ⌘Return or CtrlEnterで登録処理を実行
       monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
       () => {
-        // Command + Return or Control + Enter が押された時の処理
-        alert('Command + Return or Control + Enter pressed!');
+        buttonRegistRef.current.click();
       }
     );
   }
@@ -149,6 +155,18 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
       )
     ), answers];
   };
+
+  function getOS() {
+    const userAgent = window.navigator.userAgent;
+
+    if (userAgent.indexOf('Mac') !== -1) {
+      return 'Mac';
+    } else if (userAgent.indexOf('Win') !== -1) {
+      return 'Windows';
+    } else {
+      return 'Other';
+    }
+  }
 
   const runCode = () => {
     if (!editorRef.current) { return; }
@@ -238,6 +256,8 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     if (vsTheme !== localStorage.getItem('vsTheme')) {
       vsThemeSet(localStorage.getItem('vsTheme') || 'vs');
     }
+
+    osSet(getOS());
   }, [props.mdlQuestionData, props.mdlAuthorUserData, props.mdlSerializeAnswers, props.mdlAnswerUsers, vsTheme])
 
   useEffect(() => {
@@ -252,8 +272,13 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     mdl._question_id = mdlQuestion.id;
     await mdl.save();
     startTransition(async () => {
-      // サーバーサイドでキャッシュクリアとリダイレクトを実施。
-      await revalidateAndRedirectPath('/question/' + mdlQuestion.id);
+      if(preAfMdls.next?.id){
+        // 次の問題があるときは、クライアントのルーターでれダイレクトを実施
+        router.push('/question/' + preAfMdls.next?.id)
+      }else{
+        // 次の問題が内ときは、サーバーサイドでキャッシュクリアとリダイレクトを実施。
+        await revalidateAndRedirectPath('/question/' + mdlQuestion.id);
+      }
     });
   };
 
@@ -488,7 +513,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
               <div className="w-1/4"></div>
               <div className="w-1/2 flex justify-center items-center">
                 <Link
-                  className={`${!preAfMdls.previous && 'invisible '}w-1/3 pr-3 inline-flex items-center gap-x-1 text-gray-800 hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-500`}
+                  className={`${!preAfMdls.previous ? 'invisible ' : ''}w-1/3 pr-3 inline-flex items-center gap-x-1 text-gray-800 hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-500`}
                   href={`/question/${preAfMdls.previous?.id}`}
                 >
                   <svg className="flex-shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg>
@@ -499,12 +524,14 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
                   type="button"
                   className="w-1/3 my-4 py-3 px-4 text-center gap-x-2 text-sm rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none"
                   disabled={registDisabled || !sessionEnabled}
+                  ref={buttonRegistRef}
                   onClick={handleRegist}
                 >
-                  登録{preAfMdls.next && ' & Next'}!
+                  登録{preAfMdls.next && ' & Next'}!{os && (os === 'Mac' ? <><br />⌘+↵</> : <><br />Ctrl+Enter</>)}
+                  <br />
                 </button>
                 <Link
-                  className={`${!preAfMdls.next && 'invisible '}w-1/3 pl-3 inline-flex items-center gap-x-1 text-gray-800 hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-500`}
+                  className={`${!preAfMdls.next ? 'invisible ' : ''}w-1/3 pl-3 inline-flex items-center gap-x-1 text-gray-800 hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-500`}
                   href={`/question/${preAfMdls.next?.id}`}
                 >
                   Next

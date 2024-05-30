@@ -42,8 +42,8 @@ export default function Sidebar(props: any) {
     return () => { unsubscribe() }
   }, [cb]);
 
-  const clsCurrentPageTopTop = ' bg-gray-700';
-  const clsCurrentPageTopSub = ' bg-gray-800';
+  const clsCurrentPageTopTop = ' text-white bg-gray-600';
+  const clsCurrentPageTopSub = ' text-white bg-gray-600';
 
 
   const toplevelButton = (title: string, controlAreaId: string, isAdmin = false) => {
@@ -214,7 +214,7 @@ export default function Sidebar(props: any) {
             <li>
               <Link
                 href="/"
-                className={"flex items-center gap-x-3 py-2 px-2.5 text-sm text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-600" + (pathname === "/" && clsCurrentPageTopTop)}
+                className={"flex items-center gap-x-3 py-2 px-2.5 text-sm text-gray-400 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-600" + (pathname === "/" && clsCurrentPageTopTop)}
               >
                 <svg
                   className="flex-shrink-0 size-4"

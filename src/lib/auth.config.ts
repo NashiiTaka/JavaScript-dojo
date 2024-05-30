@@ -78,7 +78,7 @@ const authOptions: NextAuthConfig = {
      * jwtを使用している場合、セッション情報ではなくjwtのtokenを更新する必要がある。
      */
     async jwt({ token, user, account, profile, trigger }) {
-      if(!token.sub){ return token }
+      if (!token.sub) { return token }
 
       if (trigger === "update") {
         // Auth.js v5 からsessionが引数でなくなって見れなくなった。。。代替が見つからなかったので、User情報を読み込んで再書き込みする。
