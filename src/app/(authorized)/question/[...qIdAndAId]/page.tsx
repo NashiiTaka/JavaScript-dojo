@@ -4,8 +4,9 @@ import MdlAnswer from "@/mdl/MdlAnswer";
 import MdlQuestion from "@/mdl/MdlQuestion";
 import { PrismaAccelerate } from "prisma-accelerate-local";
 
-export default async function Question({ params }: { params: { id: string } }) {
-  const questionId = params.id;
+export default async function Question({ params }: { params: { qIdAndAId : any[] } }) {
+  const questionId = (params.qIdAndAId && params.qIdAndAId.length > 0) ? params.qIdAndAId[0] : '';
+  const answerId = (params.qIdAndAId && params.qIdAndAId.length > 1) ? params.qIdAndAId[1] : '';
   const mdlQuestion = await MdlQuestion.get(questionId);
   const mdlAuthorUserData = await prisma.user.findUnique({ where: { id: mdlQuestion?.updateUserId as string } });
   const mdlAnswers = (await MdlAnswer.getAll('question_id', '==', mdlQuestion?.id)).sort((a, b) => b.updatedAt - a.updatedAt);

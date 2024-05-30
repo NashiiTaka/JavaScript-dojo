@@ -33,7 +33,7 @@
     "src/mdl/Mdl0Base.ts",
     "src/app/api/auth/[...nextauth]/route.ts",
     "src/app/(authorized)/admin/question/add/page.tsx",
-    "src/app/(authorized)/question/[...id]/page.tsx",
+    "src/app/(authorized)/question/[...qIdAndAId]/page.tsx",
     "build/types/**/*.ts"
   ],
   "exclude": [
