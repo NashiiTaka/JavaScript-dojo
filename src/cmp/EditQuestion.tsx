@@ -35,6 +35,7 @@ export default function EditQuestion({ params }: { params?: { id?: string } }) {
   const [hint1, setHint1] = useState(mdl._hint1 || '');
   const [hint2, setHint2] = useState(mdl._hint2 || '');
   const [hint3, setHint3] = useState(mdl._hint3 || '');
+  const [inheritToNext, setInheritToNext] = useState(mdl._inheritToNext || false);
 
   useEffect(() => {
     const setParams = (mdl: MdlQuestion) => {
@@ -47,6 +48,7 @@ export default function EditQuestion({ params }: { params?: { id?: string } }) {
       setHint1(mdl._hint1 || '');
       setHint2(mdl._hint2 || '');
       setHint3(mdl._hint3 || '');
+      setInheritToNext(mdl._inheritToNext || false)
       setMdl(mdl || '');
     }
 
@@ -71,6 +73,7 @@ export default function EditQuestion({ params }: { params?: { id?: string } }) {
     mdl._hint1 = hint1;
     mdl._hint2 = hint2;
     mdl._hint3 = hint3;
+    mdl._inheritToNext = inheritToNext;
     await mdl.save();
 
     startTransition(async () => {
@@ -159,6 +162,10 @@ export default function EditQuestion({ params }: { params?: { id?: string } }) {
   const captionClass = "whitespace-nowrap font-bold";
   const captionClassWithMt = captionClass + " pt-3";
 
+  const setInheritToNextWrap = (e: any) => {
+    setInheritToNext(e.target.checked);
+  }
+
   return (
     <div className="w-full pt-6 px-4 sm:px-6 md:px-8">
       <div className="max-w-[85rem] mx-auto">
@@ -180,6 +187,10 @@ export default function EditQuestion({ params }: { params?: { id?: string } }) {
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
             />
+          </div>
+          <div className="flex ml-10 w-1/3">
+            <div className="flex items-center pr-3"><label htmlFor="is-inherit" className={`${captionClass}`}>解答を次の問題に引き継ぐ</label></div>
+            <input type="checkbox" id="is-inherit" name="is-inherit" checked={inheritToNext} onChange={(e) =>  { setInheritToNextWrap(e) }} />
           </div>
         </div>
         <div className="flex mt-5">

@@ -30,6 +30,7 @@ type PropsMonacoEditorCmp = {
   mdlAuthorUserData: any;
   mdlSerializeAnswers: any;
   mdlAnswerUsers: any;
+  mdlPreAnserData: any;
   height?: string;
   width?: string;
   defaultLanguage?: string;
@@ -83,7 +84,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
   const cb = useDebouncedCallback(async () => {
     localStorage.setItem(mdlQuestion.id + '_question', editorRef.current.getValue());
     runCode();
-  }, 1000);
+  }, 500);
 
   const handleEditorChange = () => {
     cb();
@@ -229,9 +230,10 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
   useEffect(() => {
     const newMdlQuestion = new MdlQuestion(props.mdlQuestionData);
 
+    const preAnswer = props.mdlPreAnserData ? new MdlAnswer(props.mdlPreAnserData) : null;
     const [madeCode, answers] = makeCodeAndAnswers(newMdlQuestion);
     const lcl = localStorage.getItem(newMdlQuestion.id + '_question');
-    const code = lcl || madeCode;
+    const code = preAnswer ? preAnswer._answer : lcl || madeCode;
     setTests(answers);
     setDefaltValue(code);
     if (editorRef.current) {
@@ -258,7 +260,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     }
 
     osSet(getOS());
-  }, [props.mdlQuestionData, props.mdlAuthorUserData, props.mdlSerializeAnswers, props.mdlAnswerUsers, vsTheme])
+  }, [props.mdlQuestionData, props.mdlAuthorUserData, props.mdlSerializeAnswers, props.mdlAnswerUsers, vsTheme, props.mdlPreAnserData])
 
   useEffect(() => {
     sessionEnabledSet(status !== "loading");
@@ -273,10 +275,10 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     await mdl.save();
     startTransition(async () => {
       if(preAfMdls.next?.id){
-        // 次の問題があるときは、クライアントのルーターでれダイレクトを実施
-        router.push('/question/' + preAfMdls.next?.id)
+        // 次の問題があるときは、クライアントのルーターでれリダイレクトを実施
+        router.push('/question/' + preAfMdls.next?.id + (mdlQuestion._inheritToNext ? '/' + mdl.id : ''));
       }else{
-        // 次の問題が内ときは、サーバーサイドでキャッシュクリアとリダイレクトを実施。
+        // 次の問題が無いときは、サーバーサイドでキャッシュクリアとリダイレクトを実施。
         await revalidateAndRedirectPath('/question/' + mdlQuestion.id);
       }
     });

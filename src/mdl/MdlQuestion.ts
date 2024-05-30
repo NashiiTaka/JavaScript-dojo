@@ -32,6 +32,9 @@ export default class MdlQuestion extends Mdl0Base<MdlQuestion> {
   get _hint3() { return this.data['hint3']; }
   set _hint3(value) { this.data['hint3'] = value; }
 
+  get _inheritToNext() { return this.data['inheritToNext']; }
+  set _inheritToNext(value) { this.data['inheritToNext'] = value; }
+
   get _createUserId() { return this.data['createUserId']; }
   set _createUserId(value) { this.data['createUserId'] = value; }
 
