@@ -20,8 +20,8 @@ export default function EditQuestion({ params }: { params?: { id?: string } }) {
 
   const initArgsAndAnswer = `{
   "answers": [
-    {"target": "1234567890", "at": 7, "return": 8},
-    {"target": "1234567890", "at": 3, "return": 4}
+    {"target": "1234567890", "at": 7, "期待値": 8},
+    {"target": "1234567890", "at": 3, "期待値": 4}
   ]
 }`;
 
@@ -104,7 +104,7 @@ export default function EditQuestion({ params }: { params?: { id?: string } }) {
 
       const makeValue = (val: any) => {
         if (typeof val === 'string') {
-          return '"' + val + '"';
+          return val === 'null' || val === 'undefined' ? val : '"' + val + '"';
         } else if (val === undefined) {
           return "undefined";
         } else if (val === null) {

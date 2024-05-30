@@ -125,7 +125,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
       for (const key in answer) {
         if (key !== "期待値") {
           const value =
-            typeof answer[key] === "string" ? `"${answer[key]}"` : answer[key];
+            typeof answer[key] === "string" && answer[key] !== 'null' && answer[key] !== 'undefined' ? `"${answer[key]}"` : answer[key];
           // (直後の変数を置換
           funcCall = funcCall.replace(
             new RegExp(`(\\([\\s]*)${key}([,\\s\\)]+)`),
@@ -139,7 +139,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
         }
       }
       const expected =
-        typeof answer["期待値"] === "string"
+        typeof answer["期待値"] === "string" && answer["期待値"] !== 'null' && answer["期待値"] !== 'undefined'
           ? `"${answer["期待値"]}"`
           : answer["期待値"];
 
@@ -274,10 +274,10 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     mdl._question_id = mdlQuestion.id;
     await mdl.save();
     startTransition(async () => {
-      if(preAfMdls.next?.id){
+      if (preAfMdls.next?.id) {
         // 次の問題があるときは、クライアントのルーターでれリダイレクトを実施
         router.push('/question/' + preAfMdls.next?.id + (mdlQuestion._inheritToNext ? '/' + mdl.id : ''));
-      }else{
+      } else {
         // 次の問題が無いときは、サーバーサイドでキャッシュクリアとリダイレクトを実施。
         await revalidateAndRedirectPath('/question/' + mdlQuestion.id);
       }
@@ -288,7 +288,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     if (['結果', '判定'].includes(key)) { return val }
 
     if (typeof val === 'string') {
-      return '"' + val + '"';
+      return val === 'null' || val === 'undefined' ? val : '"' + val + '"';
     } else if (val === undefined) {
       return "undefined";
     } else if (val === null) {
