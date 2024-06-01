@@ -110,7 +110,7 @@ export default function EditQuestion({ params }: { params?: { id?: string } }) {
         } else if (val === null) {
           return "null";
         } else {
-          return val;
+          return val + '';
         }
       }
 
@@ -240,9 +240,8 @@ export default function EditQuestion({ params }: { params?: { id?: string } }) {
         <div className="flex justify-between w-full h-[26.5rem]">
           <div className="flex flex-col w-full h-full">
             <p className={captionClassWithMt}>関数定義</p>
-            <input
-              type="text"
-              className="py-3 px-4 block w-full bg-gray-100 border-transparent rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-700 dark:border-transparent dark:text-neutral-400 dark:placeholder-neutral-500 dark:focus:ring-neutral-600"
+            <textarea
+              className="p-3 block w-full h-full bg-gray-100 border-transparent rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-700 dark:border-transparent dark:text-neutral-400 dark:placeholder-neutral-500 dark:focus:ring-neutral-600"
               value={definition}
               onChange={(e) => setDefinition(e.target.value)}
             />

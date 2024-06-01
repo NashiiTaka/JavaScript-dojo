@@ -16,6 +16,7 @@ import { ChevronsLeft } from 'lucide-react';
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MyMarkdonw, { mkdAppliedClassName } from "./MyMarkdonw";
+import { forceLoadPreline } from '@/cmp/PrelineScript'
 
 /**
  * モナコエディタ引数
@@ -43,7 +44,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
   const [outputCount, setOutputCount] = useState(0);
   const [registDisabled, setRegistDisabled] = useState(true);
   const [tests, setTests] = useState<any[]>([]);
-  const [defaltValue, setDefaltValue] = useState("");
+  const [defaltValue, setDefaultValue] = useState("");
   const [mdlQuestion, mdlQuestionSet] = useState(new MdlQuestion(props.mdlQuestionData));
   const [mdlAuthorUserData, mdlAuthorUserDataSet] = useState(props.mdlAuthorUserData);
   const [mdlAnswers, mdlAnswersSet] = useState<MdlAnswer[]>([]);
@@ -120,12 +121,12 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     const answers = JSON.parse(mdl._args_and_answer).answers;
 
     answers.forEach((answer: any) => {
-      let funcCall = mdl._definition.replace("{}", "");
-      funcCall = funcCall.replace("function ", "");
+      let funcCall = mdl._definition.match(/^[^\r\n]*/)[0];
+      funcCall = funcCall.replace("function ", "").replace('{', '').replace('}', '');
       for (const key in answer) {
         if (key !== "期待値") {
           const value =
-            typeof answer[key] === "string" && answer[key] !== 'null' && answer[key] !== 'undefined' ? `"${answer[key]}"` : answer[key];
+            typeof answer[key] === "string" && answer[key] !== 'null' && answer[key] !== 'undefined' ? `"${answer[key]}"` : answer[key] + '';
           // (直後の変数を置換
           funcCall = funcCall.replace(
             new RegExp(`(\\([\\s]*)${key}([,\\s\\)]+)`),
@@ -141,20 +142,21 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
       const expected =
         typeof answer["期待値"] === "string" && answer["期待値"] !== 'null' && answer["期待値"] !== 'undefined'
           ? `"${answer["期待値"]}"`
-          : answer["期待値"];
+          : answer["期待値"] + '';
 
       answer.___log___ = `const ret = ${funcCall}; console.test_log(\`【\${${expected} === ret ? "○" : "×"}】 実行結果:【\${typeof ret === 'string' ? \`"\${ret}"\` : ret}】\`)`;
     });
 
     return [(
-      '/**\n' +
-      mdl._specification.replace(/^/gm, ' * ') + '\n' +
-      ' */\n' +
-      mdl._definition.replace(
-        "{}",
-        "{\n  // ここにコードを記述して下さい。\n}"
-      )
-    ), answers];
+      mdl._specification.startsWith('/**') ?
+        mdl._specification + '\n'
+        :
+        '/**\n' +
+        mdl._specification.replace(/^/gm, ' * ') + '\n' +
+        ' */\n'
+    ) +
+      mdl._definition
+      , answers];
   };
 
   function getOS() {
@@ -241,7 +243,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     const [madeCode, answers] = makeCodeAndAnswers(newMdlQuestion);
     const lcl = localStorage.getItem(newMdlQuestion.id + '_question');
     const code = preAnswer ? preAnswer._answer : lcl || madeCode;
-    setDefaltValue(code);
+    setDefaultValue(code);
     if (editorRef.current) {
       editorRef.current.setValue(code);
     }
@@ -268,22 +270,42 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
 
     osSet(getOS());
 
-    if(document){
+    if (document) {
       const mdk = document.getElementsByClassName(mkdAppliedClassName);
-      if(mdk?.length > 0){
+      if (mdk?.length > 0) {
         const links = mdk[0].getElementsByTagName('a');
-        for(let i = 0; i < links.length; i++){
-          if(links[i].getAttribute('target') !== '_blank'){
+        for (let i = 0; i < links.length; i++) {
+          if (links[i].getAttribute('target') !== '_blank') {
             links[i].setAttribute('target', '_blank');
           }
         }
       }
     }
+
+    // タブ等動かなくなるケースがあるので、Prelineの初期化を強制する。
+    forceLoadPreline();
   }, [props.mdlQuestionData, props.mdlAuthorUserData, props.mdlSerializeAnswers, props.mdlAnswerUsers, vsTheme, props.mdlPreAnserData, runCodeWrapped, session?.user.id])
 
   useEffect(() => {
     sessionEnabledSet(status !== "loading");
   }, [status, sessionEnabledSet])
+
+  const onCommandEnterKeydown = useCallback((event: any) => {
+    if ((event.metaKey || event.ctrlKey) && (event.key === 'Enter')) {
+      event.preventDefault();
+      // ここにイベントハンドラの処理を記述
+      buttonRegistRef.current.click();
+    }
+  }, []);
+
+  useEffect(() => {
+    // イベントリスナーを追加
+    document.addEventListener('keydown', onCommandEnterKeydown);
+    // クリーンアップ関数を返すことで、コンポーネントのアンマウント時にイベントリスナーを削除
+    return () => {
+      document.removeEventListener('keydown', onCommandEnterKeydown);
+    };
+  }, [onCommandEnterKeydown]); // 空の依存配列を指定することで、コンポーネントのマウント時とアンマウント時にのみ実行
 
   const handleRegist = async () => {
     setRegistDisabled(true);
@@ -313,7 +335,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     } else if (val === null) {
       return "null";
     } else {
-      return val;
+      return val + '';
     }
   }
 
@@ -383,6 +405,12 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
   const handleThemeChanged = (e: React.ChangeEvent<HTMLSelectElement>) => {
     vsThemeSet(e.target.value);
     localStorage.setItem('vsTheme', e.target.value);
+  }
+
+  const handleReset = () => {
+    const [code] = makeCodeAndAnswers(mdlQuestion);
+    setDefaultValue(code);
+    editorRef.current.setValue(code);
   }
 
   const titleClassname = "font-bold";
@@ -534,7 +562,16 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
               />
             </div>
             <div className="w-full flex justify-center items-center">
-              <div className="w-1/4"></div>
+              <div className="w-1/4">
+                <button
+                  id="reset"
+                  type="button"
+                  className="my-4 py-3 px-4 text-center text-sm rounded-lg border border-transparent bg-gray-500 text-white hover:bg-gray-700 disabled:opacity-50 disabled:pointer-events-none"
+                  onClick={handleReset}
+                >
+                  元に戻す
+                </button>
+              </div>
               <div className="w-1/2 flex justify-center items-center">
                 <Link
                   className={`${!preAfMdls.previous ? 'invisible ' : ''}w-1/3 pr-3 inline-flex items-center gap-x-1 text-gray-800 hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-500`}
@@ -634,7 +671,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
                       ref={tabEditor}
                       className="hs-tab-active:bg-white hs-tab-active:text-gray-700 hs-tab-active:dark:bg-neutral-800 hs-tab-active:dark:text-neutral-400 dark:hs-tab-active:bg-gray-800 py-3 px-4 inline-flex items-center gap-x-2 bg-transparent text-sm text-gray-500 hover:text-gray-700 font-medium rounded-lg hover:hover:text-blue-600 disabled:opacity-50 disabled:pointer-events-none dark:text-neutral-400 dark:hover:text-white"
                     >
-                      コード
+                      他の人の解答
                     </button>
                   </nav>
                 </div>

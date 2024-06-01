@@ -12,6 +12,12 @@ declare global {
   }
 }
 
+export const forceLoadPreline = async () => {
+  await import("preline/preline");
+
+  window.HSStaticMethods.autoInit();
+};
+
 export default function PrelineScript() {
   const path = usePathname();
   const [questions, setQuestions] = useRecoilState(stateQuestions);
