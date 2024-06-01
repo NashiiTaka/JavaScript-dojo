@@ -109,6 +109,8 @@ const Page = () => {
             >
               登録
             </button>
+            <p className="mt-2 text-red-500">※試験運用中の為、存在しないメールアドレスでもご登録できます。</p>
+            <p className="mt-2 text-red-500">その場合は、「 〜@example.com 」をご使用下さい。</p>
           </form>
           <Link href="/signin" className="mt-2">
             ログインはこちら

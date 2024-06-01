@@ -123,6 +123,8 @@ const Page = (props: any) => {
             <Link href="/signup" className="mt-2">
               新規登録はこちら
             </Link>
+            <p className="mt-2 text-red-500">※試験運用中の為、「新規登録」から</p>
+            <p className="mt-2 text-red-500">　存在しないメールアドレスでもご登録可能です。</p>
           </div>
         </div>
       </div>

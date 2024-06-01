@@ -1,7 +1,7 @@
 'use client'
 
 // src/MonacoEditorCmp.js
-import React, { startTransition, useEffect, useRef, useState } from "react";
+import React, { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { Editor } from "@monaco-editor/react";
 import MdlQuestion from "@/mdl/MdlQuestion";
 import MdlAnswer from "@/mdl/MdlAnswer";
@@ -15,7 +15,7 @@ import { stateQuestions } from "./states";
 import { ChevronsLeft } from 'lucide-react';
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
+import MyMarkdonw, { mkdAppliedClassName } from "./MyMarkdonw";
 
 /**
  * モナコエディタ引数
@@ -51,6 +51,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
   const [mdlCurrentAnswer, mdlCurrentAnswerSet] = useState<MdlAnswer | null>(null);
   const [vsTheme, vsThemeSet] = useState<string | undefined>(undefined);
   const [os, osSet] = useState<string | undefined>(undefined);
+  const [mdlMyLatestAnswer, SetMdlMyLatestAnswer] = useState<MdlAnswer | undefined>(undefined);
 
   const editorRef = useRef<any>(null);
   const editorRORef = useRef<any>(null);
@@ -61,7 +62,6 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
 
   const [preAfMdls, setPreAfMdls] = useState<{ next: MdlQuestion | null, previous: MdlQuestion | null }>({ next: null, previous: null });
   const router = useRouter();
-
 
   useEffect(() => {
     const getPrevAndNext = (): { next: MdlQuestion | null, previous: MdlQuestion | null } => {
@@ -80,18 +80,18 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     setPreAfMdls(getPrevAndNext());
   }, [questions, mdlQuestion.id])
 
-  // 初回のonChildは一気に来るので、読込をまとめて行う。
+  // キータッチは連続してくるので、0.5秒ウェイトをかけてから実行する。
   const cb = useDebouncedCallback(async () => {
     localStorage.setItem(mdlQuestion.id + '_question', editorRef.current.getValue());
-    runCode();
+    runCode(tests, mdlMyLatestAnswer);
   }, 500);
 
   const handleEditorChange = () => {
-    cb();
-    // console.log('Editor value:', value);
+    // 変更が走ったら、登録ボタンはすぐオフにしておく。
     if (!registDisabled) {
       setRegistDisabled(true);
     }
+    cb();
   };
 
   function handleEditorWillMount(monaco: any) {
@@ -169,16 +169,22 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     }
   }
 
-  const runCode = () => {
-    if (!editorRef.current) { return; }
+  /**
+   * コードを実行する
+   * @param argAnswers 解答の配列、初期化時はstateの反映がされない可能性があるため、引数で受ける
+   * @param argCode 実行するコード、意図は同上
+   * @returns void
+   */
+  const runCode = (argAnswers: any[], mdlCurrentAnswer: MdlAnswer | undefined, argCode: string | null = null) => {
+    if (!editorRef.current && !argCode) { return; }
 
-    const code = editorRef.current.getValue();
+    const code = argCode || editorRef.current.getValue();
     const originalConsoleLog = console.log;
     let consoleLogs: string[] = [];
     let outputCountUpd = 0;
     try {
       // 結果を格納する配列を生成
-      const results = [...tests];
+      const results = [...argAnswers];
 
       let totalCount = 0;
       let okCount = 0;
@@ -201,9 +207,6 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
         totalCount++;
       }
 
-      // Object.setPrototypeOf(console, customTestLog);
-      // オブジェクトの各種出力
-
       // Execute the JavaScript code
       results.forEach((test, i) => {
         try {
@@ -217,7 +220,8 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
       });
 
       setTests(results);
-      setRegistDisabled(!(results.length <= okCount));
+      // 自分の最新の答えが現在コードと一致する場合か、NGが一つでもある場合は登録ボタンをオフに
+      setRegistDisabled(mdlCurrentAnswer?._answer === code || !(results.length <= okCount));
     } finally {
       setOutput(consoleLogs.join('\n'));
       setOutputCount(outputCountUpd);
@@ -226,6 +230,9 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
       delete (console as any).test_log;
     }
   };
+  const runCodeWrapped = useCallback((argAnswers: any[], mdlCurrentAnswer: MdlAnswer | undefined, argCode: string | null = null) => {
+    runCode(argAnswers, mdlCurrentAnswer, argCode)
+  }, []);
 
   useEffect(() => {
     const newMdlQuestion = new MdlQuestion(props.mdlQuestionData);
@@ -234,7 +241,6 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     const [madeCode, answers] = makeCodeAndAnswers(newMdlQuestion);
     const lcl = localStorage.getItem(newMdlQuestion.id + '_question');
     const code = preAnswer ? preAnswer._answer : lcl || madeCode;
-    setTests(answers);
     setDefaltValue(code);
     if (editorRef.current) {
       editorRef.current.setValue(code);
@@ -242,13 +248,14 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     setRegistDisabled(true);
     mdlQuestionSet(newMdlQuestion);
     mdlAuthorUserDataSet(props.mdlAuthorUserData);
-    setOutput("");
-    setOutputCount(0);
 
-    mdlAnswersSet(
-      props.mdlSerializeAnswers ?
-        props.mdlSerializeAnswers.map((v: any) => new MdlAnswer(v)) : []
-    );
+    const allAnswers: MdlAnswer[] = props.mdlSerializeAnswers ? props.mdlSerializeAnswers.map((v: any) => new MdlAnswer(v)) : []
+    mdlAnswersSet(allAnswers);
+
+    const myLastAns = allAnswers.find((a) => a.updateUserId === session?.user.id);
+    // 判定の初回実行を行う
+    runCodeWrapped(answers, myLastAns, code);
+    SetMdlMyLatestAnswer(myLastAns);
 
     mdlAnswerUsersSet(
       props.mdlAnswerUsers ?
@@ -260,7 +267,19 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     }
 
     osSet(getOS());
-  }, [props.mdlQuestionData, props.mdlAuthorUserData, props.mdlSerializeAnswers, props.mdlAnswerUsers, vsTheme, props.mdlPreAnserData])
+
+    if(document){
+      const mdk = document.getElementsByClassName(mkdAppliedClassName);
+      if(mdk?.length > 0){
+        const links = mdk[0].getElementsByTagName('a');
+        for(let i = 0; i < links.length; i++){
+          if(links[i].getAttribute('target') !== '_blank'){
+            links[i].setAttribute('target', '_blank');
+          }
+        }
+      }
+    }
+  }, [props.mdlQuestionData, props.mdlAuthorUserData, props.mdlSerializeAnswers, props.mdlAnswerUsers, vsTheme, props.mdlPreAnserData, runCodeWrapped, session?.user.id])
 
   useEffect(() => {
     sessionEnabledSet(status !== "loading");
@@ -409,15 +428,17 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
             </button>
             <div id="hs-basic-bordered-collapse-one" className="hs-accordion-content w-full overflow-hidden transition-[height] duration-300" aria-labelledby="hs-bordered-heading-one">
               <div className="flex flex-row w-full h-80 pl-3 pb-3">
+                {/* リード */}
                 <div className="w-1/2 pr-3 h-full">
                   <div className="border py-3 rounded-lg shadow dark:border-neutral-700 dark:shadow-gray-900 ps-4 sm:ps-6 mb-5 h-full">
-                    <blockquote className="relative border-s-4 dark:border-neutral-700 h-full overflow-auto">
-                      <pre className="text-gray-800 text-wrap dark:text-white ps-3">
+                    <blockquote className="relative ps-3 border-s-4 dark:border-neutral-700 h-full overflow-auto">
+                      <MyMarkdonw>
                         {mdlQuestion._lead}
-                      </pre>
+                      </MyMarkdonw>
                     </blockquote>
                   </div>
                 </div>
+                {/* ヒント〜他の人の解答 */}
                 <div className="w-1/2 px-3 h-full">
                   <div className="flex flex-row h-full">
                     {/* ヒント アコーディオン */}
@@ -483,6 +504,7 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
                     </div>
                   </div>
                 </div>
+                {/* ヒント〜他の人の解答 */}
               </div>
             </div>
           </div>

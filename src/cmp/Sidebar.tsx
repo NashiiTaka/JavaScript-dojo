@@ -10,11 +10,13 @@ import { useRecoilState } from "recoil";
 import { usePathname } from "next/navigation"
 
 import { ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { useSession } from "next-auth/react";
 
 export default function Sidebar(props: any) {
   const [questions, setQuestions] = useRecoilState(stateQuestions);
   const [minimized, minimizedSet] = useState(false);
   const pathname = usePathname();
+  const { data: session, status } = useSession();
 
   // 初回のonChildは一気に来るので、読込をまとめて行う。
   const cb = useDebouncedCallback(async () => {
@@ -235,7 +237,7 @@ export default function Sidebar(props: any) {
               </Link>
             </li>
 
-            <li className="hs-accordion" id="acdn-admin-top">
+            <li className={`hs-accordion` + (session?.user.nickname !== 'なっしー' ? ' hidden' : '')} id="acdn-admin-top">
               {toplevelButton('Admin', 'acdn-admin-children', true)}
               <div
                 id="acdn-admin-children"

@@ -82,6 +82,8 @@ const Page = (props: any) => {
             >
               登録
             </button>
+            <p>※ニックネームは公開されます。</p>
+            <p>※あとから設定を変更することが可能です。</p>
           </form>
         </div>
       </div >
