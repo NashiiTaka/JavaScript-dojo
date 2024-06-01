@@ -413,6 +413,11 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
     editorRef.current.setValue(code);
   }
 
+  const handleDeleteAnswer = async (mdlAnswer: MdlAnswer) => {
+    mdlAnswer.delete();
+    mdlAnswersSet(mdlAnswers.filter((m) => m.id !== mdlAnswer.id));
+  }
+
   const titleClassname = "font-bold";
 
   return (
@@ -507,22 +512,30 @@ const MonacoEditorCmp = (props: PropsMonacoEditorCmp) => {
                                 <div key={answer.id} className={`flex items-center p-1 ${answer.id === mdlCurrentAnswer?.id ? 'bg-blue-100' : 'bg-gray-50'} hover:bg-blue-100 rounded-lg shadow w-full cursor-pointer`}
                                   onClick={() => handleAnswerClicked(answer)}
                                 >
-                                  <div className="flex-shrink-0 relative ">
-                                    {user?.image && (
-                                      <div className="relative size-10 rounded-full">
+                                  <div className="flex-shrink-0 relative">
+                                    <div className="relative size-10 rounded-full">
+                                      {user?.image && (
                                         <Image
                                           src={user?.image}
                                           alt="author"
                                           fill
                                           className="inline-block size-[46px] rounded-full"
                                         />
-                                      </div>
-                                    )}
+                                      )}
+                                    </div>
                                   </div>
-                                  <div className="ms-4">
-                                    <div className="text-base font-semibold text-gray-800 dark:text-neutral-400">{user?.nickname}</div>
+                                  <div className="ms-4 w-full">
+                                    <div className="flex justify-between w-full">
+                                      <div className="text-base font-semibold text-gray-800 dark:text-neutral-400">{user?.nickname}</div>
+                                      <div className={session?.user.id !== answer.updateUserId ? 'hidden' : ''} onClick={() => handleDeleteAnswer(answer) }>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-trash-2">
+                                          <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" />
+                                        </svg>
+                                      </div>
+                                    </div>
                                     <div className="text-xs text-gray-500 dark:text-neutral-500">last modified: {dateToFormatedString(answer.updatedAt)}</div>
                                   </div>
+
                                 </div>
                               )
                             }) : <p>まだ解答はありません。</p>}
